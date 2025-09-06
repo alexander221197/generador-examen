@@ -25,11 +25,10 @@
     <div id="examContainer" class="exam-container"></div>
   </div>
 
-  <!-- Librerías desde CDN -->
+  <!-- Librerías desde CDN (sin espacios) -->
   <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
   <script>
-    // Usa el worker desde CDN
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.174/build/pdf.worker.min.js';
   </script>
   <script src="https://unpkg.com/mammoth@1.6.2/mammoth.browser.min.js"></script>
   <script src="https://unpkg.com/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
