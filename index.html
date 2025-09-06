@@ -1,1 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🧠 Generador Avanzado de Exámenes</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>🧠 Generador Avanzado de Exámenes</h1>
+    <p>Sube un archivo (.txt, .pdf o .docx) y genera un examen interactivo.</p>
+
+    <input type="file" id="fileInput" accept=".txt,.pdf,.docx" />
+    
+    <div class="options">
+      <label><input type="checkbox" id="mcqCheck" checked> Opción múltiple</label>
+      <label><input type="checkbox" id="tfCheck" checked> Verdadero/Falso</label>
+      <label><input type="checkbox" id="shortCheck" checked> Respuesta corta</label>
+    </div>
+
+    <button id="generateBtn" disabled>Generar Examen</button>
+    <button id="exportBtn" style="display:none;">Exportar como PDF</button>
+i
+    <div d="examContainer" class="exam-container"></div>
+  </div>
+
+  <!-- Librerías externas -->
+  <script src="lib/pdf.min.js"></script>
+  <script src="lib/pdf.worker.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+  </script>
+  <script src="lib/mammoth.browser.min.js"></script>
+  <script src="lib/html2pdf.bundle.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
 
