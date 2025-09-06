@@ -1,254 +1,272 @@
-// Elementos del DOM
-const fileInput = document.getElementById('fileInput');
-const generateBtn = document.getElementById('generateBtn');
-const exportBtn = document.getElementById('exportBtn');
-const examContainer = document.getElementById('examContainer');
+document.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.getElementById('fileInput');
+  const generateBtn = document.getElementById('generateBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const examContainer = document.getElementById('examContainer');
 
-const mcqCheck = document.getElementById('mcqCheck');
-const tfCheck = document.getElementById('tfCheck');
-const shortCheck = document.getElementById('shortCheck');
+  const mcqCheck = document.getElementById('mcqCheck');
+  const tfCheck = document.getElementById('tfCheck');
+  const shortCheck = document.getElementById('shortCheck');
 
-let fullText = '';
+  let fullText = '';
 
-// Habilitar botón al subir archivo
-fileInput.addEventListener('change', () => {
-  const file = fileInput.files[0];
-  generateBtn.disabled = !file || !file.name.endsWith('.txt');
-  
-  if (file && !file.name.endsWith('.txt')) {
-    alert('Por ahora, solo se soportan archivos .txt');
-    fileInput.value = '';
-  }
-});
-
-// Generar examen
-generateBtn.addEventListener('click', async () => {
-  const file = fileInput.files[0];
-  examContainer.innerHTML = '<p>Procesando texto...</p>';
-
-  try {
-    const text = await readFileAsText(file);
-    
-    if (text.trim().length < 50) {
-      examContainer.innerHTML = '<p>El archivo está vacío o muy corto.</p>';
+  // Habilitar botón para .txt, .pdf y .docx
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) {
+      generateBtn.disabled = true;
       return;
     }
 
-    fullText = text;
-    const exam = generateExam(text);
-    displayInteractiveExam(exam);
-    exportBtn.style.display = 'inline-block';
-  } catch (error) {
-    examContainer.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
-  }
-});
+    const validExtensions = ['.txt', '.pdf', '.docx'];
+    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
 
-// Exportar a PDF (si html2pdf está disponible, si no, muestra advertencia)
-exportBtn.addEventListener('click', () => {
-  if (typeof html2pdf !== 'undefined') {
-    const opt = {
-      margin: 1,
-      filename: 'examen_generado.pdf',
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-    };
-    html2pdf().from(examContainer).set(opt).save();
-  } else {
-    alert('Función de exportar a PDF no disponible en esta versión.');
-  }
-});
-
-// Leer archivo .txt
-function readFileAsText(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => resolve(e.target.result);
-    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
-    reader.readAsText(file);
-  });
-}
-
-// Generar examen (opción múltiple, verdadero/falso, respuesta corta)
-function generateExam(text) {
-  const sentences = text
-    .split(/[.!?]+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 20);
-
-  const words = text.split(/\s+/).filter(w => w.length > 4);
-  const keyTerms = [...new Set(words)].slice(0, 20);
-
-  const questions = [];
-  const numQuestions = Math.min(6, sentences.length);
-
-  for (let i = 0; i < numQuestions; i++) {
-    const sentence = sentences[i];
-    const types = [];
-    if (mcqCheck.checked) types.push('mcq');
-    if (tfCheck.checked) types.push('tf');
-    if (shortCheck.checked) types.push('short');
-    if (types.length === 0) types.push('mcq');
-
-    const type = types[Math.floor(Math.random() * types.length)];
-
-    if (type === 'mcq') {
-      const keyword = words[Math.floor(Math.random() * words.length)] || 'palabra';
-      const options = [
-        keyword,
-        keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 1',
-        keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 2',
-        keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 3'
-      ].sort(() => 0.5 - Math.random());
-
-      questions.push({
-        type: 'mcq',
-        question: `¿Qué palabra completa mejor: "${sentence.replace(/\b\w{4,}\b/, '__________')}"?`,
-        options,
-        correct: keyword
-      });
+    if (validExtensions.includes(fileExt)) {
+      generateBtn.disabled = false;
+      console.log('✅ Archivo válido:', file.name);
+    } else {
+      alert('❌ Formato no soportado. Usa .txt, .pdf o .docx');
+      fileInput.value = '';
+      generateBtn.disabled = true;
     }
-
-    else if (type === 'tf') {
-      const isTrue = Math.random() < 0.7;
-      const statement = isTrue ? sentence : `Falso: ${sentence.split(' ').reverse().join(' ')}`;
-      questions.push({
-        type: 'tf',
-        question: statement,
-        correct: isTrue
-      });
-    }
-
-    else if (type === 'short') {
-      const blanks = sentence.split(' ');
-      const idx = Math.floor(Math.random() * blanks.length);
-      const answer = blanks[idx];
-      const prompt = blanks.map((w, i) => i === idx ? '__________' : w).join(' ');
-
-      questions.push({
-        type: 'short',
-        question: `Complete: "${prompt}"`,
-        correct: answer
-      });
-    }
-  }
-
-  return questions;
-}
-
-// Mostrar examen interactivo
-function displayInteractiveExam(questions) {
-  examContainer.innerHTML = '';
-  const title = document.createElement('h2');
-  title.textContent = '📝 Examen Interactivo';
-  examContainer.appendChild(title);
-
-  questions.forEach((q, index) => {
-    const qDiv = document.createElement('div');
-    qDiv.className = 'question';
-
-    const h3 = document.createElement('h3');
-    h3.textContent = `${index + 1}. ${q.question}`;
-    qDiv.appendChild(h3);
-
-    if (q.type === 'mcq') {
-      const list = document.createElement('ul');
-      list.className = 'options';
-      q.options.forEach(option => {
-        const li = document.createElement('li');
-        li.textContent = option;
-        li.dataset.correct = option === q.correct;
-        li.addEventListener('click', () => {
-          list.querySelectorAll('li').forEach(el => el.classList.remove('selected'));
-          li.classList.add('selected');
-        });
-        list.appendChild(li);
-      });
-      qDiv.appendChild(list);
-    }
-
-    else if (q.type === 'tf') {
-      const list = document.createElement('ul');
-      list.className = 'options';
-      ['Verdadero', 'Falso'].forEach(opt => {
-        const li = document.createElement('li');
-        li.textContent = opt;
-        li.dataset.correct = (opt === 'Verdadero') === q.correct;
-        li.addEventListener('click', () => {
-          list.querySelectorAll('li').forEach(el => el.classList.remove('selected'));
-          li.classList.add('selected');
-        });
-        list.appendChild(li);
-      });
-      qDiv.appendChild(list);
-    }
-
-    else if (q.type === 'short') {
-      const shortDiv = document.createElement('div');
-      shortDiv.className = 'short-answer';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.placeholder = 'Escribe tu respuesta aquí...';
-      input.dataset.correct = q.correct;
-      shortDiv.appendChild(input);
-
-      const btn = document.createElement('button');
-      btn.textContent = 'Verificar';
-      btn.className = 'btn-submit';
-      btn.onclick = () => {
-        const userAnswer = input.value.trim().toLowerCase();
-        const correctAnswer = q.correct.toLowerCase();
-        const feedback = document.createElement('div');
-        feedback.className = 'feedback';
-        if (userAnswer === correctAnswer) {
-          feedback.textContent = '✅ Correcto';
-          feedback.style.color = 'green';
-        } else {
-          feedback.textContent = `❌ Incorrecto. Respuesta correcta: "${q.correct}"`;
-          feedback.style.color = 'red';
-        }
-        if (input.nextSibling) input.parentNode.removeChild(input.nextSibling);
-        shortDiv.appendChild(feedback);
-      };
-      shortDiv.appendChild(btn);
-      qDiv.appendChild(shortDiv);
-    }
-
-    examContainer.appendChild(qDiv);
   });
 
-  const gradeBtn = document.createElement('button');
-  gradeBtn.textContent = 'Calificar Examen';
-  gradeBtn.style.marginTop = '20px';
-  gradeBtn.onclick = () => gradeExam(questions);
-  examContainer.appendChild(gradeBtn);
+  // Generar examen
+  generateBtn.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    examContainer.innerHTML = '<p>🔄 Procesando archivo...</p>';
 
-  const resultDiv = document.createElement('div');
-  resultDiv.className = 'result';
-  resultDiv.id = 'result';
-  examContainer.appendChild(resultDiv);
-}
-
-// Calificar examen
-function gradeExam(questions) {
-  let correct = 0;
-  document.querySelectorAll('.question').forEach((qDiv, index) => {
-    const q = questions[index];
-    if (q.type === 'mcq' || q.type === 'tf') {
-      const selected = qDiv.querySelector('.options li.selected');
-      if (selected && selected.dataset.correct === 'true') {
-        correct++;
-        selected.classList.add('correct');
-      } else if (selected) {
-        selected.classList.add('incorrect');
+    try {
+      if (file.name.endsWith('.txt')) {
+        fullText = await readFileAsText(file);
       }
-      qDiv.querySelectorAll('li').forEach(li => {
-        if (li.dataset.correct === 'true') li.classList.add('correct');
-      });
+      else if (file.name.endsWith('.pdf')) {
+        fullText = await extractTextFromPDF(file);
+      }
+      else if (file.name.endsWith('.docx')) {
+        fullText = await extractTextFromDocx(file);
+      }
+      else {
+        throw new Error('Formato no soportado');
+      }
+
+      if (fullText.trim().length < 50) {
+        examContainer.innerHTML = '<p>❌ El archivo está vacío o no tiene suficiente texto.</p>';
+        return;
+      }
+
+      console.log('📄 Texto extraído:', fullText.substring(0, 200) + '...');
+      const exam = generateExam(fullText);
+      displayInteractiveExam(exam);
+      exportBtn.style.display = 'inline-block';
+    }
+    catch (error) {
+      console.error('❌ Error:', error);
+      examContainer.innerHTML = `<p style="color:red;">❌ Error: ${error.message}</p>`;
     }
   });
 
-  const resultDiv = document.getElementById('result');
-  resultDiv.style.display = 'block';
-  resultDiv.textContent = `Has acertado ${correct} de ${questions.length} preguntas.`;
-}
+  // Exportar a PDF
+  exportBtn.addEventListener('click', () => {
+    if (typeof html2pdf !== 'undefined') {
+      const opt = {
+        margin: 1,
+        filename: 'examen_generado.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      html2pdf().from(examContainer).set(opt).save();
+    } else {
+      alert('⚠️ Exportar a PDF no disponible.');
+    }
+  });
+
+  // === FUNCIONES DE LECTURA ===
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      reader.readAsText(file);
+    });
+  }
+
+  async function extractTextFromPDF(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(item => item.str).join(' ');
+      text += ' ' + pageText;
+    }
+    return text;
+  }
+
+  async function extractTextFromDocx(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+        mammoth.extractText({ arrayBuffer })
+          .then(result => resolve(result.text))
+          .catch(err => reject(new Error('Error al leer .docx: ' + err.message)));
+      };
+      reader.onerror = () => reject(new Error('Error al leer el archivo .docx'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  // === GENERAR EXAMEN ===
+  function generateExam(text) {
+    const sentences = text
+      .split(/[.!?]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 20);
+
+    const words = text.split(/\s+/).filter(w => w.length > 4);
+    const keyTerms = [...new Set(words)].slice(0, 20);
+
+    const questions = [];
+    const numQuestions = Math.min(6, sentences.length);
+
+    for (let i = 0; i < numQuestions; i++) {
+      const sentence = sentences[i];
+      const types = [];
+      if (mcqCheck.checked) types.push('mcq');
+      if (tfCheck.checked) types.push('tf');
+      if (shortCheck.checked) types.push('short');
+      const type = types.length > 0 ? types[Math.floor(Math.random() * types.length)] : 'mcq';
+
+      if (type === 'mcq') {
+        const keyword = words[Math.floor(Math.random() * words.length)] || 'palabra';
+        const options = [
+          keyword,
+          keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 1',
+          keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 2',
+          keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 3'
+        ].sort(() => 0.5 - Math.random());
+
+        questions.push({
+          type: 'mcq',
+          question: `¿Qué palabra completa mejor: "${sentence.replace(/\b\w{4,}\b/, '__________')}"?`,
+          options,
+          correct: keyword
+        });
+      }
+      else if (type === 'tf') {
+        const isTrue = Math.random() < 0.7;
+        questions.push({
+          type: 'tf',
+          question: isTrue ? sentence : `Falso: ${sentence.split(' ').reverse().join(' ')}`,
+          correct: isTrue
+        });
+      }
+      else if (type === 'short') {
+        const wordsInSentence = sentence.split(' ');
+        const idx = Math.floor(Math.random() * wordsInSentence.length);
+        const answer = wordsInSentence[idx];
+        const prompt = wordsInSentence.map((w, i) => i === idx ? '__________' : w).join(' ');
+
+        questions.push({
+          type: 'short',
+          question: `Complete: "${prompt}"`,
+          correct: answer
+        });
+      }
+    }
+
+    return questions;
+  }
+
+  // === MOSTRAR EXAMEN ===
+  function displayInteractiveExam(questions) {
+    examContainer.innerHTML = '<h2>📝 Examen Interactivo</h2>';
+    questions.forEach((q, index) => {
+      const qDiv = document.createElement('div');
+      qDiv.className = 'question';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = `${index + 1}. ${q.question}`;
+      qDiv.appendChild(h3);
+
+      if (q.type === 'mcq') {
+        const ul = document.createElement('ul');
+        ul.className = 'options';
+        q.options.forEach(opt => {
+          const li = document.createElement('li');
+          li.textContent = opt;
+          li.dataset.correct = opt === q.correct;
+          li.onclick = () => {
+            ul.querySelectorAll('li').forEach(el => el.classList.remove('selected'));
+            li.classList.add('selected');
+          };
+          ul.appendChild(li);
+        });
+        qDiv.appendChild(ul);
+      }
+      else if (q.type === 'tf') {
+        const ul = document.createElement('ul');
+        ul.className = 'options';
+        ['Verdadero', 'Falso'].forEach(opt => {
+          const li = document.createElement('li');
+          li.textContent = opt;
+          li.dataset.correct = (opt === 'Verdadero') === q.correct;
+          li.onclick = () => {
+            ul.querySelectorAll('li').forEach(el => el.classList.remove('selected'));
+            li.classList.add('selected');
+          };
+          ul.appendChild(li);
+        });
+        qDiv.appendChild(ul);
+      }
+      else if (q.type === 'short') {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Escribe tu respuesta...';
+        input.style.width = '100%';
+        input.style.padding = '8px';
+        input.dataset.correct = q.correct;
+
+        const btn = document.createElement('button');
+        btn.textContent = 'Verificar';
+        btn.style.marginTop = '8px';
+        btn.onclick = () => {
+          const user = input.value.trim().toLowerCase();
+          const correct = q.correct.toLowerCase();
+          const feedback = document.createElement('div');
+          feedback.style.marginTop = '5px';
+          feedback.textContent = user === correct ? '✅ Correcto' : `❌ Incorrecto. Era: "${q.correct}"`;
+          feedback.style.color = user === correct ? 'green' : 'red';
+          if (input.nextSibling) input.parentNode.removeChild(input.nextSibling);
+          input.parentNode.appendChild(feedback);
+        };
+
+        const div = document.createElement('div');
+        div.appendChild(input);
+        div.appendChild(btn);
+        qDiv.appendChild(div);
+      }
+
+      examContainer.appendChild(qDiv);
+    });
+
+    const gradeBtn = document.createElement('button');
+    gradeBtn.textContent = 'Calificar Examen';
+    gradeBtn.style.marginTop = '20px';
+    gradeBtn.onclick = () => {
+      let correct = 0;
+      document.querySelectorAll('.question').forEach((qDiv, i) => {
+        const q = questions[i];
+        if (q.type === 'mcq' || q.type === 'tf') {
+          const selected = qDiv.querySelector('.options li.selected');
+          if (selected && selected.dataset.correct === 'true') correct++;
+        }
+      });
+      alert(`🎉 ¡Examen calificado! ${correct} de ${questions.length} correctas.`);
+    };
+    examContainer.appendChild(gradeBtn);
+  }
+});
