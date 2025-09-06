@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function extractTextFromPDF(file) {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({  arrayBuffer }).promise;
+    const pdf = await pdfjsLib.getDocument({ arrayBuffer }).promise;
     let text = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -145,4 +145,128 @@ document.addEventListener('DOMContentLoaded', () => {
         const options = [
           keyword,
           keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 1',
-          key
+          keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 2',
+          keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 3'
+        ].sort(() => 0.5 - Math.random());
+
+        questions.push({
+          type: 'mcq',
+          question: `¿Qué palabra completa mejor: "${sentence.replace(/\b\w{4,}\b/, '__________')}"?`,
+          options,
+          correct: keyword
+        });
+      }
+      else if (type === 'tf') {
+        const isTrue = Math.random() < 0.7;
+        questions.push({
+          type: 'tf',
+          question: isTrue ? sentence : `Falso: ${sentence.split(' ').reverse().join(' ')}`,
+          correct: isTrue
+        });
+      }
+      else if (type === 'short') {
+        const wordsInSentence = sentence.split(' ');
+        const idx = Math.floor(Math.random() * wordsInSentence.length);
+        const answer = wordsInSentence[idx];
+        const prompt = wordsInSentence.map((w, i) => i === idx ? '__________' : w).join(' ');
+
+        questions.push({
+          type: 'short',
+          question: `Complete: "${prompt}"`,
+          correct: answer
+        });
+      }
+    }
+
+    return questions;
+  }
+
+  // === MOSTRAR EXAMEN ===
+  function displayInteractiveExam(questions) {
+    examContainer.innerHTML = '<h2>📝 Examen Interactivo</h2>';
+    questions.forEach((q, index) => {
+      const qDiv = document.createElement('div');
+      qDiv.className = 'question';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = `${index + 1}. ${q.question}`;
+      qDiv.appendChild(h3);
+
+      if (q.type === 'mcq') {
+        const ul = document.createElement('ul');
+        ul.className = 'options';
+        q.options.forEach(opt => {
+          const li = document.createElement('li');
+          li.textContent = opt;
+          li.dataset.correct = opt === q.correct;
+          li.onclick = () => {
+            ul.querySelectorAll('li').forEach(el => el.classList.remove('selected'));
+            li.classList.add('selected');
+          };
+          ul.appendChild(li);
+        });
+        qDiv.appendChild(ul);
+      }
+      else if (q.type === 'tf') {
+        const ul = document.createElement('ul');
+        ul.className = 'options';
+        ['Verdadero', 'Falso'].forEach(opt => {
+          const li = document.createElement('li');
+          li.textContent = opt;
+          li.dataset.correct = (opt === 'Verdadero') === q.correct;
+          li.onclick = () => {
+            ul.querySelectorAll('li').forEach(el => el.classList.remove('selected'));
+            li.classList.add('selected');
+          };
+          ul.appendChild(li);
+        });
+        qDiv.appendChild(ul);
+      }
+      else if (q.type === 'short') {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Escribe tu respuesta...';
+        input.style.width = '100%';
+        input.style.padding = '8px';
+        input.dataset.correct = q.correct;
+
+        const btn = document.createElement('button');
+        btn.textContent = 'Verificar';
+        btn.style.marginTop = '8px';
+        btn.onclick = () => {
+          const user = input.value.trim().toLowerCase();
+          const correct = q.correct.toLowerCase();
+          const feedback = document.createElement('div');
+          feedback.style.marginTop = '5px';
+          feedback.textContent = user === correct ? '✅ Correcto' : `❌ Incorrecto. Era: "${q.correct}"`;
+          feedback.style.color = user === correct ? 'green' : 'red';
+          if (input.nextSibling) input.parentNode.removeChild(input.nextSibling);
+          input.parentNode.appendChild(feedback);
+        };
+
+        const div = document.createElement('div');
+        div.appendChild(input);
+        div.appendChild(btn);
+        qDiv.appendChild(div);
+      }
+
+      examContainer.appendChild(qDiv);
+    });
+
+    const gradeBtn = document.createElement('button');
+    gradeBtn.textContent = 'Calificar Examen';
+    gradeBtn.style.marginTop = '20px';
+    gradeBtn.onclick = () => {
+      let correct = 0;
+      document.querySelectorAll('.question').forEach((qDiv, i) => {
+        const q = questions[i];
+        if (q.type === 'mcq' || q.type === 'tf') {
+          const selected = qDiv.querySelector('.options li.selected');
+          if (selected && selected.dataset.correct === 'true') correct++;
+        }
+      });
+      alert(`🎉 ¡Examen calificado! ${correct} de ${questions.length} correctas.`);
+    };
+    examContainer.appendChild(gradeBtn);
+  }
+});
