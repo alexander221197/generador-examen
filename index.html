@@ -1,39 +1,276 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>🧠 Generador Avanzado de Exámenes</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="container">
-    <h1>🧠 Generador Avanzado de Exámenes</h1>
-    <p>Sube un archivo (.txt, .pdf o .docx) y genera un examen interactivo.</p>
+document.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.getElementById('fileInput');
+  const generateBtn = document.getElementById('generateBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const examContainer = document.getElementById('examContainer');
 
-    <input type="file" id="fileInput" accept=".txt,.pdf,.docx" />
-    
-    <div class="options">
-      <label><input type="checkbox" id="mcqCheck" checked> Opción múltiple</label>
-      <label><input type="checkbox" id="tfCheck" checked> Verdadero/Falso</label>
-      <label><input type="checkbox" id="shortCheck" checked> Respuesta corta</label>
-    </div>
+  const mcqCheck = document.getElementById('mcqCheck');
+  const tfCheck = document.getElementById('tfCheck');
+  const shortCheck = document.getElementById('shortCheck');
 
-    <button id="generateBtn" disabled>Generar Examen</button>
-    <button id="exportBtn" style="display:none;">Exportar como PDF</button>
-i
-    <div d="examContainer" class="exam-container"></div>
-  </div>
+  let fullText = '';
 
-  <!-- Librerías externas -->
-  <script src="lib/pdf.min.js"></script>
-  <script src="lib/pdf.worker.min.js"></script>
-  <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
-  </script>
-  <script src="lib/mammoth.browser.min.js"></script>
-  <script src="lib/html2pdf.bundle.min.js"></script>
-  <script src="script.js"></script>
-</body>
-</html>
+  // Habilitar botón al subir archivo
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) {
+      generateBtn.disabled = true;
+      return;
+    }
 
+    // Validar tipo de archivo
+    const validTypes = ['text/plain', 'application/pdf'];
+    const validExtensions = ['.txt', '.pdf', '.docx'];
+
+    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+
+    if (validTypes.includes(file.type) || validExtensions.includes(fileExt)) {
+      generateBtn.disabled = false;
+      console.log('✅ Archivo válido:', file.name, '(', file.type, fileExt, ')');
+    } else {
+      alert('❌ Formato no soportado. Usa .txt, .pdf o .docx');
+      fileInput.value = '';
+      generateBtn.disabled = true;
+    }
+  });
+
+  // Generar examen
+  generateBtn.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    examContainer.innerHTML = '<p>🔄 Procesando archivo...</p>';
+
+    try {
+      if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+        fullText = await readFileAsText(file);
+      }
+      else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        fullText = await extractTextFromPDF(file);
+      }
+      else if (file.name.endsWith('.docx')) {
+        fullText = await extractTextFromDocx(file);
+      }
+      else {
+        throw new Error('Formato no soportado');
+      }
+
+      if (fullText.trim().length < 50) {
+        examContainer.innerHTML = '<p>❌ El archivo no tiene suficiente texto para generar preguntas.</p>';
+        return;
+      }
+
+      console.log('📄 Texto extraído:', fullText.substring(0, 200) + '...');
+      const exam = generateExam(fullText);
+      displayInteractiveExam(exam);
+      exportBtn.style.display = 'inline-block';
+    }
+    catch (error) {
+      console.error('❌ Error al procesar el archivo:', error);
+      examContainer.innerHTML = `<p style="color:red;">❌ Error: ${error.message}</p>`;
+    }
+  });
+
+  // Exportar a PDF
+  exportBtn.addEventListener('click', () => {
+    if (typeof html2pdf !== 'undefined') {
+      const opt = {
+        margin: 1,
+        filename: 'examen_generado.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      html2pdf().from(examContainer).set(opt).save();
+    } else {
+      alert('⚠️ La función de exportar a PDF no está disponible.');
+    }
+  });
+
+  // === FUNCIONES DE LECTURA DE ARCHIVOS ===
+
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      reader.readAsText(file);
+    });
+  }
+
+  async function extractTextFromPDF(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(item => item.str).join(' ');
+      text += ' ' + pageText;
+    }
+    return text;
+  }
+
+  async function extractTextFromDocx(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+        mammoth.extractText({ arrayBuffer })
+          .then(result => resolve(result.text))
+          .catch(err => reject(new Error('Error al leer .docx: ' + err.message)));
+      };
+      reader.onerror = () => reject(new Error('Error al leer el archivo .docx'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  // === GENERAR EXAMEN ===
+  function generateExam(text) {
+    const sentences = text
+      .split(/[.!?]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 20);
+
+    const words = text.split(/\s+/).filter(w => w.length > 4);
+    const keyTerms = [...new Set(words)].slice(0, 20);
+
+    const questions = [];
+    const numQuestions = Math.min(6, sentences.length);
+
+    for (let i = 0; i < numQuestions; i++) {
+      const sentence = sentences[i];
+      const types = [];
+      if (mcqCheck.checked) types.push('mcq');
+      if (tfCheck.checked) types.push('tf');
+      if (shortCheck.checked) types.push('short');
+      const type = types.length > 0 ? types[Math.floor(Math.random() * types.length)] : 'mcq';
+
+      if (type === 'mcq') {
+        const keyword = words[Math.floor(Math.random() * words.length)] || 'palabra';
+        const options = [
+          keyword,
+          keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 1',
+          keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 2',
+          keyTerms[Math.floor(Math.random() * keyTerms.length)] || 'Opción 3'
+        ].sort(() => 0.5 - Math.random());
+
+        questions.push({
+          type: 'mcq',
+          question: `¿Qué palabra completa mejor: "${sentence.replace(/\b\w{4,}\b/, '__________')}"?`,
+          options,
+          correct: keyword
+        });
+      }
+      else if (type === 'tf') {
+        const isTrue = Math.random() < 0.7;
+        questions.push({
+          type: 'tf',
+          question: isTrue ? sentence : `Falso: ${sentence.split(' ').reverse().join(' ')}`,
+          correct: isTrue
+        });
+      }
+      else if (type === 'short') {
+        const wordsInSentence = sentence.split(' ');
+        const idx = Math.floor(Math.random() * wordsInSentence.length);
+        const answer = wordsInSentence[idx];
+        const prompt = wordsInSentence.map((w, i) => i === idx ? '__________' : w).join(' ');
+
+        questions.push({
+          type: 'short',
+          question: `Complete: "${prompt}"`,
+          correct: answer
+        });
+      }
+    }
+
+    return questions;
+  }
+
+  // === MOSTRAR EXAMEN ===
+  function displayInteractiveExam(questions) {
+    examContainer.innerHTML = '<h2>📝 Examen Interactivo</h2>';
+    questions.forEach((q, index) => {
+      const qDiv = document.createElement('div');
+      qDiv.className = 'question';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = `${index + 1}. ${q.question}`;
+      qDiv.appendChild(h3);
+
+      if (q.type === 'mcq') {
+        const ul = document.createElement('ul');
+        ul.className = 'options';
+        q.options.forEach(opt => {
+          const li = document.createElement('li');
+          li.textContent = opt;
+          li.dataset.correct = opt === q.correct;
+          li.onclick = () => {
+            ul.querySelectorAll('li').forEach(el => el.classList.remove('selected'));
+            li.classList.add('selected');
+          };
+          ul.appendChild(li);
+        });
+        qDiv.appendChild(ul);
+      }
+      else if (q.type === 'tf') {
+        const ul = document.createElement('ul');
+        ul.className = 'options';
+        ['Verdadero', 'Falso'].forEach(opt => {
+          const li = document.createElement('li');
+          li.textContent = opt;
+          li.dataset.correct = (opt === 'Verdadero') === q.correct;
+          li.onclick = () => {
+            ul.querySelectorAll('li').forEach(el => el.classList.remove('selected'));
+            li.classList.add('selected');
+          };
+          ul.appendChild(li);
+        });
+        qDiv.appendChild(ul);
+      }
+      else if (q.type === 'short') {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Escribe tu respuesta...';
+        input.style.width = '100%';
+        input.style.padding = '8px';
+        input.dataset.correct = q.correct;
+
+        const btn = document.createElement('button');
+        btn.textContent = 'Verificar';
+        btn.style.marginTop = '8px';
+        btn.onclick = () => {
+          const user = input.value.trim().toLowerCase();
+          const correct = q.correct.toLowerCase();
+          const feedback = document.createElement('div');
+          feedback.style.marginTop = '5px';
+          feedback.textContent = user === correct ? '✅ Correcto' : `❌ Incorrecto. Era: "${q.correct}"`;
+          feedback.style.color = user === correct ? 'green' : 'red';
+          if (input.nextSibling) input.parentNode.removeChild(input.nextSibling);
+          input.parentNode.appendChild(feedback);
+        };
+
+        const div = document.createElement('div');
+        div.appendChild(input);
+        div.appendChild(btn);
+        qDiv.appendChild(div);
+      }
+
+      examContainer.appendChild(qDiv);
+    });
+
+    const gradeBtn = document.createElement('button');
+    gradeBtn.textContent = 'Calificar Examen';
+    gradeBtn.style.marginTop = '20px';
+    gradeBtn.onclick = () => {
+      let correct = 0;
+      document.querySelectorAll('.question').forEach((qDiv, i) => {
+        const q = questions[i];
+        if (q.type === 'mcq' || q.type === 'tf') {
+          const selected = qDiv.querySelector('.options li.selected');
+          if (selected && selected.dataset.correct === 'true') correct++;
+        }
+      });
+      alert(`🎉 ¡Examen calificado! ${correct} de ${questions.length} correctas.`);
+    };
+    examContainer.appendChild(gradeBtn);
+  }
+});
